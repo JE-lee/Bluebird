@@ -1,0 +1,74 @@
+{
+  "name": "promise-like",
+  "version": "0.0.0",
+  "description": "promise-like",
+  "license": "MIT",
+  "repository": "",
+  "author": "",
+  "keywords": [
+    ""
+  ],
+  "files": [
+    "lib"
+  ],
+  "main": "lib/index",
+  "types": "lib/index",
+  "scripts": {
+    "test-spec": "npm run build && node spec-test.js",
+    "clean": "rimraf lib",
+    "format": "prettier --write \"{src,test}/**/*.ts\"",
+    "lint": "eslint --fix src/**/*.ts",
+    "prepublishOnly": "npm run build",
+    "build": "npm run format && npm run clean && npm run lint && echo Using TypeScript && tsc --version && tsc -p tsconfig.build.json",
+    "build:debug": "tsc",
+    "test": "mocha --compilers ts:ts-node/register --recursive \"test/**/*-spec.ts\"",
+    "coverage": "nyc --include=\"src/**/*.ts\" --reporter=text --reporter=html --reporter=lcov mocha --compilers ts:ts-node/register --recursive \"test/**/*-spec.ts\"",
+    "watch": "npm run build -- --watch",
+    "watch:test": "npm run test -- --watch",
+    "ts-watch": "tsc --watch",
+    "dev": "tsc && concurrently \"npm run ts-watch\" \"nodemon lib/index.js\""
+  },
+  "dependencies": {
+    "promises-aplus-tests": "^2.1.2"
+  },
+  "devDependencies": {
+    "@types/chai": "^4.1.6",
+    "@types/mocha": "^5.2.5",
+    "@types/node": "^10.11.4",
+    "@typescript-eslint/eslint-plugin": "^4.16.1",
+    "@typescript-eslint/parser": "^4.16.1",
+    "chai": "^4.2.0",
+    "concurrently": "^5.1.0",
+    "coveralls": "^3.0.2",
+    "eslint": "^7.21.0",
+    "eslint-config-prettier": "^8.1.0",
+    "eslint-plugin-prettier": "^3.3.1",
+    "eslint-plugin-react": "^7.22.0",
+    "mocha": "^5.2.0",
+    "nodemon": "^2.0.2",
+    "nyc": "^13.0.1",
+    "prettier": "^2.2.1",
+    "rimraf": "^2.6.2",
+    "ts-node": "^7.0.1",
+    "typescript": "^4.2.2"
+  },
+  "engines": {
+    "node": ">=10.0.0"
+  },
+  "nyc": {
+    "include": [
+      "src/**/*.ts"
+    ],
+    "exclude": [
+      "lib"
+    ],
+    "extension": [
+      ".ts"
+    ],
+    "require": [
+      "ts-node/register"
+    ],
+    "reporter": [],
+    "all": true
+  }
+}
