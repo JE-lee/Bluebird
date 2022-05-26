@@ -7,54 +7,74 @@ enum STATUS {
   REJECTED = 'rejected',
 }
 
-function isPromise(value: any): value is PromiseLike<any> {
-  return (
-    ((typeof value === 'object' && value !== null) || typeof value === 'function') && typeof value.then === 'function'
-  )
-}
-
 export class Bluebird<T> implements PromiseLike<T> {
   status = STATUS.PENDING
   value!: T
   reason: any
-  onfulfilledCallbacks: (() => void)[] = []
-  onrejectedCallbacks: (() => void)[] = []
-  translated = false
+  callbacks: (() => void)[] = []
   constructor(excutor?: (resolve: OnResolve<T>, reject: OnReject) => void) {
-    typeof excutor === 'function' && excutor(this._resolve.bind(this), this._reject.bind(this))
+    typeof excutor === 'function' && excutor(this.resolve.bind(this), this.reject.bind(this))
   }
 
-  private _resolvePromise(val: T) {
-    this.status = STATUS.FULFILLED
-    this.value = val
+  private process() {
     setTimeout(() => {
-      this.onfulfilledCallbacks.forEach((cb) => cb())
-    }, 0)
-  }
-
-  private _rejectPromise(reason: any) {
-    this.status = STATUS.REJECTED
-    this.reason = reason
-    setTimeout(() => {
-      this.onrejectedCallbacks.forEach((cb) => cb())
-    }, 0)
-  }
-
-  private _resolve(value: T | PromiseLike<T>) {
-    if (!this.translated) {
-      this.translated = true
-      if (isPromise(value)) {
-        value.then(this._resolvePromise.bind(this), this._rejectPromise.bind(this))
-      } else {
-        this._resolvePromise(value)
+      while (this.callbacks.length > 0) {
+        const callback = this.callbacks.shift()
+        callback && callback()
       }
+    }, 0)
+  }
+
+  private _resolve(value: T) {
+    if (this.status === STATUS.PENDING) {
+      this.status = STATUS.FULFILLED
+      this.value = value
+      this.process()
     }
   }
 
-  private _reject(reason: any) {
-    if (!this.translated) {
-      this.translated = true
-      this._rejectPromise(reason)
+  private resolve(value: T | PromiseLike<T>): void {
+    if (value === this) {
+      this.reject(new TypeError('The promise and its value refer to the same object'))
+    } else if (value instanceof Bluebird) {
+      // promise
+      value.then(this.resolve.bind(this), this.reject.bind(this))
+    } else if (typeof value === 'function' || (typeof value === 'object' && value !== null)) {
+      let called = false
+      try {
+        // thenable
+        // then maybe is a accessotr
+        const then = (value as any).then
+        if (typeof then === 'function') {
+          then.call(
+            value,
+            (y: any) => {
+              !called && this.resolve(y)
+              called = true
+            },
+            (err: any) => {
+              !called && this.reject(err)
+              called = true
+            },
+          )
+        } else {
+          this._resolve(value as any)
+        }
+      } catch (error) {
+        if (!called) {
+          this.reject(error)
+        }
+      }
+    } else {
+      this._resolve(value)
+    }
+  }
+
+  private reject(reason: any) {
+    if (this.status === STATUS.PENDING) {
+      this.status = STATUS.REJECTED
+      this.reason = reason
+      this.process()
     }
   }
 
@@ -63,115 +83,31 @@ export class Bluebird<T> implements PromiseLike<T> {
     onrejected?: ((reason: any) => TResult2 | PromiseLike<TResult2>) | null,
   ): PromiseLike<TResult1 | TResult2> {
     return new Bluebird((resolve, reject) => {
-      const _resolve = () => {
+      const callback = () => {
         try {
-          const result = typeof onfulfilled === 'function' ? onfulfilled(this.value) : this.value
-          if ((result as any) === this) throw TypeError()
-          if (isPromise(result)) {
-            result.then.call(result, resolve, reject)
-          } else {
-            resolve(result as TResult1)
+          if (this.status === STATUS.PENDING) return
+
+          let value: any = this.value
+          if (this.status === STATUS.FULFILLED && typeof onfulfilled === 'function') {
+            value = onfulfilled(this.value)
+          } else if (this.status === STATUS.REJECTED) {
+            if (typeof onrejected === 'function') {
+              value = onrejected(this.reason)
+            } else {
+              reject(this.reason)
+              return
+            }
           }
+          resolve(value)
         } catch (error) {
           reject(error)
         }
       }
 
-      const _reject = () => {
-        try {
-          const result = typeof onrejected === 'function' ? onrejected(this.reason) : this.reason
-          if ((result as any) === this) throw TypeError()
-          if (isPromise(result)) {
-            result.then.call(result, resolve, reject)
-          } else {
-            resolve(result)
-          }
-        } catch (error) {
-          reject(error)
-        }
-      }
-      // pending
-      if (this.status === STATUS.PENDING) {
-        this.onfulfilledCallbacks.push(_resolve)
-        this.onrejectedCallbacks.push(_reject)
-      }
-
-      // fulfilled
-      if (this.status === STATUS.FULFILLED) {
-        _resolve()
-      }
-
-      // rejected
-      if (this.status === STATUS.REJECTED) {
-        _reject()
+      this.callbacks.push(callback)
+      if (this.status !== STATUS.PENDING) {
+        this.process()
       }
     })
   }
 }
-
-// const pro = new Bluebird<number>((resolve, reject) => {
-//   setTimeout(() => {
-//     resolve(12)
-//   }, 100)
-// })
-// ;(async () => {
-//   const result = await pro
-//     .then()
-//     .then((res) => {
-//       console.log('res', res)
-//       return { name: '123' }
-//     })
-//     .then()
-//     .then((res) => {
-//       throw 'error 123'
-//     })
-//     .then(
-//       (res) => {},
-//       (err) => {
-//         return 12222
-//       },
-//     )
-//     .then((res) => {
-//       return res
-//     })
-//     .then((res) => {
-//       const p = new Bluebird((resolve) => {
-//         resolve(res)
-//       })
-//       return p
-//     })
-//   debugger
-// })()
-
-// const p = new Bluebird((resolve) => {
-//   resolve(12)
-// })
-// new Bluebird((resolve) => {
-//   resolve(12)
-// })
-//   .then(() => {
-//     return new Bluebird((resolve, reject) => reject(1))
-//   })
-//   .then(
-//     (res) => {
-//       debugger
-//     },
-//     (err) => {
-//       debugger
-//     },
-//   )
-
-// new Bluebird<number>((resolve) => {
-//   resolve(12)
-// })
-//   .then((res) => {
-//     return {
-//       then: (resolve, reject) => {
-//         resolve!(res + 1)
-//       },
-//     } as PromiseLike<any>
-//   })
-//   .then((res) => {
-//     debugger
-//     console.log('res', res)
-//   })

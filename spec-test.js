@@ -17,15 +17,3 @@ promisesAplusTests(Bluebird, { reporter: 'dot'}, err => {
     console.log(err)
   }
 })
-
-// new Bluebird((resolve) => {
-//   // resolve(12)
-// })
-//   .then((res) => {
-//     return {
-//       then: (resolve, reject) => {
-//         resolve(res + 1)
-//       },
-//     }
-//   })
-//   .then((res) => console.log('res', res))
